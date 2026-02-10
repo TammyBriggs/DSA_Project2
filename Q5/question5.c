@@ -3,9 +3,9 @@
 #include <string.h>
 #include <limits.h>
 
-// Total Nodes: A, B, C, D(L), D(R), E, F, G(T), G(B), H
+// Total Nodes: A, B, C, D, E, F, G, H, I, J
 #define V 10 
-#define MAX_EDGES 40 // Enough for bidirectional edges
+#define MAX_EDGES 40 // Sufficient for bidirectional graph
 
 // Edge Structure
 typedef struct {
@@ -18,15 +18,11 @@ typedef struct {
     int numEdges;
 } Graph;
 
-// Helper to handle the duplicate names in the diagram
+// Helper to get Branch Name by Index
 void getBranchName(int index, char *buffer) {
-    const char *names[] = {
-        "A", "B", "C", 
-        "D (Left)", "D (Right)", 
-        "E", "F", 
-        "G (Top)", "G (Bottom)", 
-        "H"
-    };
+    // Mapping: 0=A, 1=B, 2=C, 3=D, 4=E, 5=F, 6=G, 7=H, 8=I, 9=J
+    const char *names[] = {"A", "B", "C", "D", "E", "F", "G", "H", "I", "J"};
+    
     if (index >= 0 && index < V) {
         strcpy(buffer, names[index]);
     } else {
@@ -34,17 +30,34 @@ void getBranchName(int index, char *buffer) {
     }
 }
 
-// Bellman-Ford Algorithm
+// Helper to add a bidirectional edge
+void addEdge(Graph *g, int u, int v, int w) {
+    // Add direction u -> v
+    g->edges[g->numEdges].src = u;
+    g->edges[g->numEdges].dest = v;
+    g->edges[g->numEdges].weight = w;
+    g->numEdges++;
+
+    // Add direction v -> u (Undirected Graph)
+    g->edges[g->numEdges].src = v;
+    g->edges[g->numEdges].dest = u;
+    g->edges[g->numEdges].weight = w;
+    g->numEdges++;
+}
+
+// The Bellman-Ford Algorithm
 void BellmanFord(Graph* graph, int src) {
     int dist[V];
-    char nameBuffer[20];
-    char nameBuffer2[20];
+    char nameBuffer[10];
+    char uName[10], vName[10];
 
     // 1. Initialize distances
+    // Set all to "Infinity" (INT_MAX), except source
     for (int i = 0; i < V; i++) dist[i] = INT_MAX;
     dist[src] = 0;
 
     // 2. Relax edges |V| - 1 times
+    // This finds the shortest path for all nodes
     for (int i = 1; i <= V - 1; i++) {
         for (int j = 0; j < graph->numEdges; j++) {
             int u = graph->edges[j].src;
@@ -57,83 +70,88 @@ void BellmanFord(Graph* graph, int src) {
         }
     }
 
-    // 3. Detect Negative Cycles
+    // 3. Detect Negative-Weight Cycles
     int cycleDetected = 0;
     for (int j = 0; j < graph->numEdges; j++) {
         int u = graph->edges[j].src;
         int v = graph->edges[j].dest;
         int weight = graph->edges[j].weight;
 
+        // If we can still reduce the cost, a negative cycle exists
         if (dist[u] != INT_MAX && dist[u] + weight < dist[v]) {
             cycleDetected = 1;
-            getBranchName(u, nameBuffer);
-            getBranchName(v, nameBuffer2);
-            printf("\n[ALERT] Negative Weight Cycle Detected between %s and %s!\n", 
-                   nameBuffer, nameBuffer2);
+            getBranchName(u, uName);
+            getBranchName(v, vName);
+            printf("\n[ALERT] Negative Weight Cycle Detected involving %s -> %s!\n", 
+                   uName, vName);
         }
     }
 
     if (!cycleDetected) {
-        printf("\n[Status] No negative-weight cycles detected in the current network.\n");
+        printf("\n[Status] No negative-weight cycles detected.\n");
     }
 
-    // 4. Print Results
-    printf("\n--- Shortest Risk Paths from Branch A ---\n");
-    printf("%-15s | %-10s\n", "Target Branch", "Min Cost");
-    printf("--------------------------------\n");
+    // 4. Display Final Results
+    printf("\n--- Shortest Transaction Paths from Branch A ---\n");
+    printf("%-10s | %-15s\n", "Branch", "Min Risk (Cost)");
+    printf("------------------------------\n");
+    
+    // Print alphabetically or by Index? Let's verify mapping:
+    // A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7, I=8, J=9
     for (int i = 0; i < V; i++) {
         getBranchName(i, nameBuffer);
         if (dist[i] == INT_MAX)
-            printf("%-15s | Unreachable\n", nameBuffer);
+            printf("%-10s | Unreachable\n", nameBuffer);
         else
-            printf("%-15s | %d\n", nameBuffer, dist[i]);
+            printf("%-10s | %d\n", nameBuffer, dist[i]);
     }
-    printf("--------------------------------\n");
-}
-
-// Helper to add bidirectional edge
-void addEdge(Graph *g, int u, int v, int w) {
-    g->edges[g->numEdges].src = u;
-    g->edges[g->numEdges].dest = v;
-    g->edges[g->numEdges].weight = w;
-    g->numEdges++;
-
-    g->edges[g->numEdges].src = v;
-    g->edges[g->numEdges].dest = u;
-    g->edges[g->numEdges].weight = w;
-    g->numEdges++;
+    printf("------------------------------\n");
 }
 
 int main() {
     Graph graph;
     graph.numEdges = 0;
 
-    // Node Mapping:
-    // 0:A, 1:B, 2:C, 3:D(L), 4:D(R), 5:E, 6:F, 7:G(T), 8:G(B), 9:H
-
-    // Adding Edges from Image (Screenshot 2026-02-10 14-36-33)
+    // NODE MAPPING INDEX:
+    // A=0, B=1, C=2, D=3, E=4, F=5, G=6, H=7, I=8, J=9
+    
+    // Edges connected to A
     addEdge(&graph, 0, 1, 4);   // A-B
-    addEdge(&graph, 0, 3, 16);  // A-D(L)
+    addEdge(&graph, 0, 3, 16);  // A-D
+
+    // Edges connected to B (excluding A)
     addEdge(&graph, 1, 2, 6);   // B-C
-    addEdge(&graph, 1, 3, 6);   // B-D(L)
-    addEdge(&graph, 1, 4, 7);   // B-D(R)
-    addEdge(&graph, 2, 7, 9);   // C-G(T)
-    addEdge(&graph, 3, 5, 7);   // D(L)-E
-    addEdge(&graph, 3, 4, 0);   // D(L)-D(R) [No Value Visible, assuming 0/Direct]
-    addEdge(&graph, 4, 6, 3);   // D(R)-F
-    addEdge(&graph, 5, 6, 10);  // E-F
-    addEdge(&graph, 5, 8, 2);   // E-G(B)
-    addEdge(&graph, 6, 7, 0);   // F-G(T) [No Value Visible, assuming 0/Direct]
-    addEdge(&graph, 6, 8, 10);  // F-G(B)
-    addEdge(&graph, 7, 9, 13);  // G(T)-H
+    addEdge(&graph, 1, 3, 6);   // B-D
+    addEdge(&graph, 1, 9, 7);   // B-J
 
-    /* NOTE: To test "Negative Cycle Detection",
-       uncomment the line below. It creates a cycle B -> D(R) -> B with net negative weight.
-    */
-    // addEdge(&graph, 4, 1, -10); 
+    // Edges connected to C (excluding B)
+    addEdge(&graph, 2, 6, 9);   // C-G
 
-    printf("Calculating Risk Paths for 10-Node Transaction Network...\n");
-    BellmanFord(&graph, 0); // Start from A (Node 0)
+    // Edges connected to D (excluding A, B)
+    addEdge(&graph, 3, 9, 0);   // D-J (Line present, no number. Assuming 0)
+    addEdge(&graph, 3, 4, 7);   // D-E
+
+    // Edges connected to J (excluding B, D)
+    addEdge(&graph, 9, 5, 3);   // J-F
+
+    // Edges connected to E (excluding D)
+    addEdge(&graph, 4, 5, 10);  // E-F
+    addEdge(&graph, 4, 8, 2);   // E-I
+
+    // Edges connected to F (excluding J, E)
+    addEdge(&graph, 5, 8, 10);  // F-I
+    addEdge(&graph, 5, 6, 0);   // F-G (Line present, no number. Assuming 0)
+
+    // Edges connected to G (excluding C, F)
+    addEdge(&graph, 6, 7, 13);  // G-H
+
+    // (H and I are fully connected above)
+
+    /* UNCOMMENT LINE BELOW TO TEST NEGATIVE CYCLE DETECTION */
+    // addEdge(&graph, 9, 1, -20); // Creates cycle B-J-B with negative sum
+
+    printf("Calculating Minimum Risk Paths (Bellman-Ford)...\n");
+    BellmanFord(&graph, 0); // Start from Node 0 (Branch A)
 
     return 0;
 }
